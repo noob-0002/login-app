@@ -36,12 +36,9 @@ if st.session_state.user:
             
         st.title(f"👤 {target_user}'s Profile")
         
-        # Find the target user's ID
         target_search = supabase.table("profiles").select("id").eq("username", target_user).execute()
         if target_search.data:
             target_id = target_search.data[0]["id"]
-            
-            # Fetch ONLY their public songs
             songs = supabase.table("songs").select("*").eq("user_id", target_id).eq("is_public", True).order("created_at", desc=True).execute()
             
             if not songs.data:
@@ -55,7 +52,7 @@ if st.session_state.user:
         else:
             st.error("User not found.")
             
-        st.stop() # Stop rendering the rest of the dashboard
+        st.stop()
 
     # ==========================================
     # MAIN DASHBOARD
@@ -87,18 +84,14 @@ if st.session_state.user:
                 with st.spinner("Uploading..."):
                     file_ext = audio_file.name.split(".")[-1]
                     file_path = f"{user_id}/{uuid.uuid4()}.{file_ext}"
-                    
                     supabase.storage.from_("music").upload(file_path, audio_file.read())
-                    
                     supabase.table("songs").insert({
                         "user_id": user_id,
                         "title": title,
                         "file_path": file_path,
                         "is_public": is_public
                     }).execute()
-                    
                 st.success("🎉 Song uploaded successfully! Please refresh the page.")
-                
             except Exception as e:
                 st.error(f"❌ Upload failed: {e}")
 
@@ -107,22 +100,17 @@ if st.session_state.user:
     # --- PLAYLIST & SEARCH SECTION ---
     st.subheader("🎧 Discover & Listen")
     
-    # Fetch all usernames to map user_ids to names
     all_profiles = supabase.table("profiles").select("id, username").execute()
     user_map = {p["id"]: p["username"] for p in all_profiles.data}
-    
-    # The Search Bar
     search_query = st.text_input("🔍 Search for a user to see their public playlist")
     
     if search_query:
         user_search = supabase.table("profiles").select("id").eq("username", search_query).execute()
-        
         if not user_search.data:
             st.warning("User not found.")
         else:
             searched_id = user_search.data[0]["id"]
             songs = supabase.table("songs").select("*").eq("user_id", searched_id).eq("is_public", True).order("created_at", desc=True).execute()
-            
             if not songs.data:
                 st.info(f"No public songs found for {search_query}.")
             else:
@@ -133,9 +121,7 @@ if st.session_state.user:
                         st.write(f"**{song['title']}**")
                         st.audio(audio_url)
     else:
-        # Default view: Your own songs + Everyone else's public songs
         songs = supabase.table("songs").select("*").order("created_at", desc=True).execute()
-        
         if not songs.data:
             st.info("No songs uploaded yet. Be the first!")
         else:
@@ -147,7 +133,6 @@ if st.session_state.user:
                 with st.container(border=True):
                     st.write(f"**{song['title']}** ({badge})")
                     
-                    # Add a clickable button to view the profile
                     if uploader_name != "Unknown User":
                         if st.button(f"👤 View {uploader_name}'s Profile", key=f"profile_{song['id']}"):
                             st.session_state.viewing_user = uploader_name
@@ -157,6 +142,28 @@ if st.session_state.user:
                         
                     st.audio(audio_url)
     
+    # --- DANGER ZONE (Delete Account) ---
+    st.divider()
+    with st.expander("⚙️ Account Settings (Danger Zone)"):
+        st.warning("Deleting your account is permanent. All your uploaded songs and profile data will be lost forever.")
+        confirm_delete = st.checkbox("Yes, I want to permanently delete my account")
+        
+        if st.button("Delete My Account", type="primary"):
+            if confirm_delete:
+                try:
+                    with st.spinner("Deleting account and data..."):
+                        # Call the secure SQL function we just created
+                        supabase.rpc("delete_my_account").execute()
+                        supabase.auth.sign_out()
+                        st.session_state.user = None
+                        st.session_state.viewing_user = None
+                        st.success("Account successfully deleted.")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to delete account: {e}")
+            else:
+                st.error("⚠️ Please check the confirmation box first.")
+
     st.stop()
 
 # ---------- LOGGED OUT VIEW ----------
@@ -193,7 +200,6 @@ with tab2:
             st.warning("Username must be at least 3 characters.")
         else:
             existing_user = supabase.table("profiles").select("username").eq("username", new_username).execute()
-            
             if len(existing_user.data) > 0:
                 st.error("🚫 That username is already taken.")
             else:
