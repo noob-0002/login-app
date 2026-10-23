@@ -10,8 +10,11 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
+# Initialize session states
 if "user" not in st.session_state:
     st.session_state.user = None
+if "viewing_user" not in st.session_state:
+    st.session_state.viewing_user = None
 
 # ---------- LOGGED IN VIEW ----------
 if st.session_state.user:
@@ -21,12 +24,49 @@ if st.session_state.user:
     profile = supabase.table("profiles").select("username").eq("id", user_id).execute()
     username = profile.data[0]["username"] if profile.data else "Music Lover"
 
+    # ==========================================
+    # PROFILE VIEW (When a user clicks "View Profile")
+    # ==========================================
+    if st.session_state.viewing_user:
+        target_user = st.session_state.viewing_user
+        
+        if st.button("⬅ Back to Dashboard"):
+            st.session_state.viewing_user = None
+            st.rerun()
+            
+        st.title(f"👤 {target_user}'s Profile")
+        
+        # Find the target user's ID
+        target_search = supabase.table("profiles").select("id").eq("username", target_user).execute()
+        if target_search.data:
+            target_id = target_search.data[0]["id"]
+            
+            # Fetch ONLY their public songs
+            songs = supabase.table("songs").select("*").eq("user_id", target_id).eq("is_public", True).order("created_at", desc=True).execute()
+            
+            if not songs.data:
+                st.info("This user has no public songs.")
+            else:
+                for song in songs.data:
+                    audio_url = supabase.storage.from_("music").get_public_url(song["file_path"])
+                    with st.container(border=True):
+                        st.write(f"**{song['title']}**")
+                        st.audio(audio_url)
+        else:
+            st.error("User not found.")
+            
+        st.stop() # Stop rendering the rest of the dashboard
+
+    # ==========================================
+    # MAIN DASHBOARD
+    # ==========================================
     st.title("🎵 Your Music Dashboard")
     st.write(f"Logged in as: **{username}**")
     
     if st.button("Log out"):
         supabase.auth.sign_out()
         st.session_state.user = None
+        st.session_state.viewing_user = None
         st.rerun()
         
     st.divider()
@@ -102,13 +142,19 @@ if st.session_state.user:
             for song in songs.data:
                 audio_url = supabase.storage.from_("music").get_public_url(song["file_path"])
                 badge = "🌍 Public" if song["is_public"] else "🔒 Private"
-                
-                # Look up the uploader's name from our dictionary map
                 uploader_name = user_map.get(song["user_id"], "Unknown User")
                 
                 with st.container(border=True):
                     st.write(f"**{song['title']}** ({badge})")
-                    st.caption(f"👤 Uploaded by: {uploader_name}") # <-- This adds the name!
+                    
+                    # Add a clickable button to view the profile
+                    if uploader_name != "Unknown User":
+                        if st.button(f"👤 View {uploader_name}'s Profile", key=f"profile_{song['id']}"):
+                            st.session_state.viewing_user = uploader_name
+                            st.rerun()
+                    else:
+                        st.caption(f"👤 Uploaded by: {uploader_name}")
+                        
                     st.audio(audio_url)
     
     st.stop()
