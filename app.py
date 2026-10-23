@@ -25,7 +25,7 @@ if st.session_state.user:
     username = profile.data[0]["username"] if profile.data else "Music Lover"
 
     # ==========================================
-    # PROFILE VIEW (When a user clicks "View Profile")
+    # PROFILE VIEW
     # ==========================================
     if st.session_state.viewing_user:
         target_user = st.session_state.viewing_user
@@ -59,7 +59,6 @@ if st.session_state.user:
     # ==========================================
     st.title("🎵 Your Music Dashboard")
     
-    # Header with Username and Logout
     col1, col2 = st.columns([3, 1])
     with col1:
         st.write(f"Logged in as: **{username}**")
@@ -70,7 +69,7 @@ if st.session_state.user:
             st.session_state.viewing_user = None
             st.rerun()
 
-    # --- ACCOUNT SETTINGS (Moved to Top) ---
+    # --- ACCOUNT SETTINGS ---
     with st.expander("⚙️ Account Settings"):
         st.warning("Deleting your account is permanent. All your uploaded songs and profile data will be lost forever.")
         confirm_delete = st.checkbox("Yes, I want to permanently delete my account")
@@ -79,7 +78,6 @@ if st.session_state.user:
             if confirm_delete:
                 try:
                     with st.spinner("Deleting account and data..."):
-                        # Call the secure SQL function
                         supabase.rpc("delete_my_account").execute()
                         supabase.auth.sign_out()
                         st.session_state.user = None
@@ -171,7 +169,7 @@ if st.session_state.user:
 
 # ---------- LOGGED OUT VIEW ----------
 st.title("🎵 My Music App")
-tab1, tab2 = st.tabs(["Login", "Sign Up"])
+tab1, tab2, tab3 = st.tabs(["Login", "Sign Up", "Reset Password"])
 
 # --- LOGIN TAB ---
 with tab1:
@@ -216,3 +214,44 @@ with tab2:
                     st.success("Account created! You can now log in.")
                 except Exception as e:
                     st.error(f"Sign up failed: {e}")
+
+# --- RESET PASSWORD TAB ---
+with tab3:
+    st.subheader("Forgot your password?")
+    st.write("Enter your email to receive a 6-digit reset code.")
+    
+    reset_email = st.text_input("Email", key="reset_email")
+    if st.button("Send Reset Code"):
+        if reset_email:
+            try:
+                supabase.auth.reset_password_for_email(reset_email)
+                st.success("Code sent! Check your email.")
+            except Exception as e:
+                st.error(f"Error: {e}")
+        else:
+            st.warning("Please enter your email.")
+
+    st.divider()
+    
+    st.write("Already have a code?")
+    with st.form("update_password_form"):
+        otp_code = st.text_input("6-Digit Code")
+        new_pw = st.text_input("New Password", type="password")
+        update_btn = st.form_submit_button("Update Password")
+        
+    if update_btn:
+        if len(new_pw) < 6:
+            st.warning("Password must be at least 6 characters.")
+        else:
+            try:
+                # Verify the OTP code
+                supabase.auth.verify_otp({
+                    "email": reset_email,
+                    "token": otp_code,
+                    "type": "recovery"
+                })
+                # Update the password
+                supabase.auth.update_user({"password": new_pw})
+                st.success("🎉 Password updated! You can now log in.")
+            except Exception as e:
+                st.error(f"Failed to update password. Check the code and try again. Error: {e}")
