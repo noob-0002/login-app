@@ -35,7 +35,7 @@ if st.session_state.user:
     st.subheader("Upload a new song")
     with st.form("upload_form", clear_on_submit=True):
         title = st.text_input("Song Title")
-        audio_file = st.file_uploader("Choose an audio file (MP3, WAV)", type=["mp3", "wav", "m4a"])
+        audio_file = st.file_uploader("Choose an audio file", type=["mp3", "wav", "m4a", "ogg"])
         is_public = st.checkbox("Make this song public (others can see it)")
         submit_song = st.form_submit_button("Upload Song")
         
@@ -66,22 +66,47 @@ if st.session_state.user:
 
     st.divider()
 
-    # --- PLAYLIST SECTION ---
+    # --- PLAYLIST & SEARCH SECTION ---
     st.subheader("🎧 Discover & Listen")
     
-    # Fetch songs (RLS automatically hides private songs from other users)
-    songs = supabase.table("songs").select("*").order("created_at", desc=True).execute()
+    # The Search Bar
+    search_query = st.text_input("🔍 Search for a user to see their public playlist")
     
-    if not songs.data:
-        st.info("No songs uploaded yet. Be the first!")
-    else:
-        for song in songs.data:
-            audio_url = supabase.storage.from_("music").get_public_url(song["file_path"])
-            badge = "🌍 Public" if song["is_public"] else "🔒 Private"
+    if search_query:
+        # 1. Find the user ID for the searched username
+        user_search = supabase.table("profiles").select("id").eq("username", search_query).execute()
+        
+        if not user_search.data:
+            st.warning("User not found.")
+        else:
+            searched_id = user_search.data[0]["id"]
             
-            with st.container(border=True):
-                st.write(f"**{song['title']}** ({badge})")
-                st.audio(audio_url)
+            # 2. Fetch ONLY public songs for this specific user
+            songs = supabase.table("songs").select("*").eq("user_id", searched_id).eq("is_public", True).order("created_at", desc=True).execute()
+            
+            if not songs.data:
+                st.info(f"No public songs found for {search_query}.")
+            else:
+                st.write(f"Showing public playlist for **{search_query}**:")
+                for song in songs.data:
+                    audio_url = supabase.storage.from_("music").get_public_url(song["file_path"])
+                    with st.container(border=True):
+                        st.write(f"**{song['title']}**")
+                        st.audio(audio_url)
+    else:
+        # Default view: Your own songs + Everyone else's public songs
+        songs = supabase.table("songs").select("*").order("created_at", desc=True).execute()
+        
+        if not songs.data:
+            st.info("No songs uploaded yet. Be the first!")
+        else:
+            for song in songs.data:
+                audio_url = supabase.storage.from_("music").get_public_url(song["file_path"])
+                badge = "🌍 Public" if song["is_public"] else "🔒 Private"
+                
+                with st.container(border=True):
+                    st.write(f"**{song['title']}** ({badge})")
+                    st.audio(audio_url)
     
     st.stop()
 
