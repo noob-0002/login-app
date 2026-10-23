@@ -112,29 +112,27 @@ with tab2:
         new_password = st.text_input("Password", type="password")
         submitted_signup = st.form_submit_button("Sign up", use_container_width=True)
         
-    if submitted_signup:
-        if len(new_password) < 6:
-            st.warning("Password must be at least 6 characters.")
-        elif len(new_username) < 3:
-            st.warning("Username must be at least 3 characters.")
-        else:
-            # Check if username is taken
-            existing_user = supabase.table("profiles").select("username").eq("username", new_username).execute()
+    if submit_song:
+    if not title or not audio_file:
+        st.warning("Please provide a title and a file.")
+    else:
+        try:
+            with st.spinner("Uploading..."):
+                file_ext = audio_file.name.split(".")[-1]
+                file_path = f"{user_id}/{uuid.uuid4()}.{file_ext}"
+                
+                # Upload to Supabase Storage
+                supabase.storage.from_("music").upload(file_path, audio_file.read())
+                
+                # Save details to Database
+                supabase.table("songs").insert({
+                    "user_id": user_id,
+                    "title": title,
+                    "file_path": file_path,
+                    "is_public": is_public
+                }).execute()
+                
+            st.success("🎉 Song uploaded successfully! Please refresh the page to see it.")
             
-            if len(existing_user.data) > 0:
-                st.error("🚫 That username is already taken.")
-            else:
-                try:
-                    # Create Auth user
-                    response = supabase.auth.sign_up({"email": new_email, "password": new_password})
-                    
-                    # Save Username to profiles table
-                    if response.user:
-                        supabase.table("profiles").insert({
-                            "id": response.user.id, 
-                            "username": new_username
-                        }).execute()
-                        
-                    st.success("Account created! You can now log in.")
-                except Exception as e:
-                    st.error(f"Sign up failed: {e}")
+        except Exception as e:
+            st.error(f"❌ Upload failed: {e}")
