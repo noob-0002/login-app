@@ -35,7 +35,7 @@ if st.session_state.user:
     st.subheader("Upload a new song")
     with st.form("upload_form", clear_on_submit=True):
         title = st.text_input("Song Title")
-        audio_file = st.file_uploader("Choose an audio file (MP3, WAV)", type=["mp3", "wav"])
+        audio_file = st.file_uploader("Choose an audio file (MP3, WAV)", type=["mp3", "wav", "m4a"])
         is_public = st.checkbox("Make this song public (others can see it)")
         submit_song = st.form_submit_button("Upload Song")
         
