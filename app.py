@@ -16,7 +16,9 @@ if "user" not in st.session_state:
 if "viewing_user" not in st.session_state:
     st.session_state.viewing_user = None
 
-# ---------- LOGGED IN VIEW ----------
+# ==========================================
+# LOGGED IN VIEW
+# ==========================================
 if st.session_state.user:
     user_id = st.session_state.user.id
     
@@ -24,9 +26,7 @@ if st.session_state.user:
     profile = supabase.table("profiles").select("username").eq("id", user_id).execute()
     username = profile.data[0]["username"] if profile.data else "Music Lover"
 
-    # ==========================================
-    # PROFILE VIEW
-    # ==========================================
+    # ---------- PROFILE VIEW ----------
     if st.session_state.viewing_user:
         target_user = st.session_state.viewing_user
         
@@ -54,9 +54,7 @@ if st.session_state.user:
             
         st.stop()
 
-    # ==========================================
-    # MAIN DASHBOARD
-    # ==========================================
+    # ---------- MAIN DASHBOARD ----------
     st.title("🎵 Your Music Dashboard")
     
     col1, col2 = st.columns([3, 1])
@@ -167,7 +165,9 @@ if st.session_state.user:
     
     st.stop()
 
-# ---------- LOGGED OUT VIEW ----------
+# ==========================================
+# LOGGED OUT VIEW
+# ==========================================
 st.title("🎵 My Music App")
 tab1, tab2, tab3 = st.tabs(["Login", "Sign Up", "Reset Password"])
 
@@ -218,14 +218,13 @@ with tab2:
 # --- RESET PASSWORD TAB ---
 with tab3:
     st.subheader("Forgot your password?")
-    st.write("Enter your email to receive a 6-digit reset code.")
     
     reset_email = st.text_input("Email", key="reset_email")
     if st.button("Send Reset Code"):
         if reset_email:
             try:
                 supabase.auth.reset_password_for_email(reset_email)
-                st.success("Code sent! Check your email.")
+                st.success("Code sent! Check your email inbox (and spam folder).")
             except Exception as e:
                 st.error(f"Error: {e}")
         else:
@@ -233,15 +232,17 @@ with tab3:
 
     st.divider()
     
-    st.write("Already have a code?")
+    st.write("Enter the code from your email and choose a new password:")
     with st.form("update_password_form"):
-        otp_code = st.text_input("6-Digit Code")
+        otp_code = st.text_input("Reset Code")
         new_pw = st.text_input("New Password", type="password")
         update_btn = st.form_submit_button("Update Password")
         
     if update_btn:
         if len(new_pw) < 6:
             st.warning("Password must be at least 6 characters.")
+        elif not reset_email:
+            st.warning("Please enter your email at the top first.")
         else:
             try:
                 # Verify the OTP code
@@ -252,6 +253,6 @@ with tab3:
                 })
                 # Update the password
                 supabase.auth.update_user({"password": new_pw})
-                st.success("🎉 Password updated! You can now log in.")
+                st.success("🎉 Password updated! You can now log in with your new password.")
             except Exception as e:
-                st.error(f"Failed to update password. Check the code and try again. Error: {e}")
+                st.error(f"Failed to update password. Error: {e}")
