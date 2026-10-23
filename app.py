@@ -58,14 +58,39 @@ if st.session_state.user:
     # MAIN DASHBOARD
     # ==========================================
     st.title("🎵 Your Music Dashboard")
-    st.write(f"Logged in as: **{username}**")
     
-    if st.button("Log out"):
-        supabase.auth.sign_out()
-        st.session_state.user = None
-        st.session_state.viewing_user = None
-        st.rerun()
+    # Header with Username and Logout
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.write(f"Logged in as: **{username}**")
+    with col2:
+        if st.button("Log out", use_container_width=True):
+            supabase.auth.sign_out()
+            st.session_state.user = None
+            st.session_state.viewing_user = None
+            st.rerun()
+
+    # --- ACCOUNT SETTINGS (Moved to Top) ---
+    with st.expander("⚙️ Account Settings"):
+        st.warning("Deleting your account is permanent. All your uploaded songs and profile data will be lost forever.")
+        confirm_delete = st.checkbox("Yes, I want to permanently delete my account")
         
+        if st.button("Delete My Account", type="primary"):
+            if confirm_delete:
+                try:
+                    with st.spinner("Deleting account and data..."):
+                        # Call the secure SQL function
+                        supabase.rpc("delete_my_account").execute()
+                        supabase.auth.sign_out()
+                        st.session_state.user = None
+                        st.session_state.viewing_user = None
+                        st.success("Account successfully deleted.")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to delete account: {e}")
+            else:
+                st.error("⚠️ Please check the confirmation box first.")
+
     st.divider()
 
     # --- UPLOAD SECTION ---
@@ -142,28 +167,6 @@ if st.session_state.user:
                         
                     st.audio(audio_url)
     
-    # --- DANGER ZONE (Delete Account) ---
-    st.divider()
-    with st.expander("⚙️ Account Settings (Danger Zone)"):
-        st.warning("Deleting your account is permanent. All your uploaded songs and profile data will be lost forever.")
-        confirm_delete = st.checkbox("Yes, I want to permanently delete my account")
-        
-        if st.button("Delete My Account", type="primary"):
-            if confirm_delete:
-                try:
-                    with st.spinner("Deleting account and data..."):
-                        # Call the secure SQL function we just created
-                        supabase.rpc("delete_my_account").execute()
-                        supabase.auth.sign_out()
-                        st.session_state.user = None
-                        st.session_state.viewing_user = None
-                        st.success("Account successfully deleted.")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to delete account: {e}")
-            else:
-                st.error("⚠️ Please check the confirmation box first.")
-
     st.stop()
 
 # ---------- LOGGED OUT VIEW ----------
